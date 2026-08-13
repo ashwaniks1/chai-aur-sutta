@@ -2,12 +2,13 @@
 
 A [Pan Wala](https://pan-wala.vercel.app)-style fullscreen radio page for 90s & 2000s Bollywood — tapri wale gaane, full volume.
 
+Uses the [Spotify Web Playback SDK](https://github.com/spotify/spotify-web-playback-sdk-example) pattern for full playlist playback in your custom player.
+
 ## Features
 
 - Loads tracks from **your** Spotify playlist (you must own it or collaborate on it)
+- Full playlist playback via **Spotify Web Playback SDK**
 - Pan Wala–inspired UI: hero background, floating glass player, live clock
-- Full-track playback via YouTube search (optional)
-- Falls back to Spotify 30-second previews when YouTube is unavailable
 - Fully customizable via `config.js`
 
 ## Quick start
@@ -17,107 +18,73 @@ A [Pan Wala](https://pan-wala.vercel.app)-style fullscreen radio page for 90s & 
 1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 2. Create an app
 3. Copy **Client ID** and **Client Secret**
-
-### 2. Spotify refresh token (required)
-
-Spotify no longer allows playlist track access with Client ID/Secret alone. You need a one-time user authorization:
-
-1. In your [Spotify app settings](https://developer.spotify.com/dashboard), add Redirect URI:
+4. Add **Redirect URIs**:
    ```
-   http://127.0.0.1:8888/callback
+   http://localhost:3000/api/auth/callback
+   https://YOUR-DOMAIN.vercel.app/api/auth/callback
    ```
-2. Add your Spotify account to the app's **User Management** allowlist (Settings → Users and Access).
-3. Run locally:
+5. Add your Spotify account to **Users and Access** (development mode allowlist)
+
+### 2. Spotify refresh token (for playlist metadata API)
+
+Spotify requires a server refresh token to load playlist track info for the UI:
 
 ```bash
 SPOTIFY_CLIENT_ID=your_id SPOTIFY_CLIENT_SECRET=your_secret node scripts/get-spotify-refresh-token.js
 ```
 
-4. Copy the printed `SPOTIFY_REFRESH_TOKEN` into Vercel environment variables.
+Add the printed `SPOTIFY_REFRESH_TOKEN` to Vercel.
 
 ### 3. Configure your site
 
-Edit `config.js`:
+Edit `config.js` with your playlist ID, name, and theme.
 
-```js
-window.SITE_CONFIG = {
-  name: 'Ashwani\'s Mix',
-  tagline: 'Late Night Vibes',
-  description: 'My personal Spotify playlist.',
-  spotifyPlaylistId: 'YOUR_PLAYLIST_ID', // from open.spotify.com/playlist/THIS_PART
-  themeColor: '#0a0a12',
-  heroImage: 'hero-bg.jpg',
-  timezone: 'America/New_York',
-  links: {
-    spotify: '',
-    instagram: 'https://instagram.com/yourhandle',
-  },
-};
-```
-
-Add a background image named `hero-bg.jpg` in the project root (or change `heroImage` to any URL).
-
-### 4. Run locally with Vercel
+### 4. Run locally
 
 ```bash
-npm i -g vercel
 vercel dev
 ```
 
-Set environment variables when prompted (or in `.env.local`):
+Environment variables:
 
 ```
 SPOTIFY_CLIENT_ID=your_client_id
 SPOTIFY_CLIENT_SECRET=your_client_secret
 SPOTIFY_REFRESH_TOKEN=your_refresh_token
-YOUTUBE_API_KEY=your_youtube_key   # optional, for full-track playback
 ```
 
 Open `http://localhost:3000`.
 
 ### 5. Deploy to Vercel
 
-```bash
-vercel
-```
+Add the same env vars in Vercel, then deploy.
 
-In the Vercel dashboard, add:
+## How playback works
 
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `SPOTIFY_CLIENT_ID` | Yes | Spotify app credentials |
-| `SPOTIFY_CLIENT_SECRET` | Yes | Spotify app credentials |
-| `SPOTIFY_REFRESH_TOKEN` | Yes | Read your playlist tracks |
-| `YOUTUBE_API_KEY` | No | Full songs via YouTube (like Pan Wala) |
+1. Page loads → player UI shows your playlist info
+2. Visitor clicks **Connect** (or **Play**) → Spotify login
+3. **Play** starts your playlist via Web Playback SDK
+4. Custom controls drive play / pause / next / prev / seek
 
-## Playback modes
+**Requirements for listeners:**
 
-| Mode | Requirement | Experience |
-|------|-------------|------------|
-| YouTube | Automatic (no key needed) | Full songs via YouTube search |
-| YouTube Data API | `YOUTUBE_API_KEY` optional | Faster/more reliable search |
-| Spotify preview | Fallback only | 30-second clips (rare for Bollywood) |
-| Open in Spotify | Top-bar link | Full playback in Spotify app |
+- Spotify account (logged in through your site)
+- **Spotify Premium** (required by Web Playback SDK)
 
 ## Project structure
 
 ```
 spotify-radio/
-├── index.html       # Page shell
-├── style.css        # Pan Wala–style UI
-├── app.js           # Player engine
-├── config.js        # Your customization
+├── index.html
+├── style.css
+├── app.js              # Web Playback SDK player
+├── config.js
 ├── api/
-│   ├── playlist.js       # Spotify playlist API
-│   └── youtube-search.js # YouTube fallback search
-└── vercel.json
+│   ├── auth/           # OAuth login flow
+│   ├── playlist.js     # Playlist metadata
+│   └── _lib/
+└── scripts/
 ```
-
-## Notes
-
-- The playlist must be **owned by you** (or you must be a collaborator). Spotify returns 403 otherwise.
-- Your Spotify account must be on the app's **allowlist** in the Developer Dashboard (development mode).
-- YouTube playback requires a [Google Cloud API key](https://console.cloud.google.com/) with YouTube Data API v3 enabled.
 
 ## License
 

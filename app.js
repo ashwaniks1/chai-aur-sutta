@@ -1,24 +1,20 @@
 'use strict';
 
 const config = window.SITE_CONFIG || {};
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? '/api'
-  : '/api';
+const API_BASE = '/api';
 
 let playlist = [];
-let playlistMeta = null;
+let accessToken = '';
+let spotifyPlayer = null;
+let deviceId = null;
 let currentIndex = 0;
 let isPlaying = false;
 let isReady = false;
-let hasUserStarted = false;
-let isSkipLocked = false;
+let isAuthenticated = false;
+let hasStarted = false;
 let isDraggingSeek = false;
-let seekInterval = null;
-let playbackMode = 'none'; // 'youtube' | 'preview'
-
-let ytPlayer = null;
-const previewAudio = document.getElementById('preview-audio');
-const youtubeCache = new Map();
+let playbackPosition = 0;
+let playbackDuration = 0;
 
 const elTrackName = document.getElementById('track-name');
 const elTrackArtist = document.getElementById('track-artist');
@@ -84,6 +80,22 @@ function renderTopbarLinks(spotifyUrl) {
 
   const links = [];
   const spotifyLink = config.links?.spotify || spotifyUrl;
+
+  if (isAuthenticated) {
+    links.push(`
+      <button type="button" class="pill-btn" id="btn-logout" aria-label="Disconnect Spotify">
+        <span>Logout</span>
+      </button>
+    `);
+  } else {
+    links.push(`
+      <a href="/api/auth/login" class="pill-btn" aria-label="Connect Spotify">
+        <svg class="pill-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+        <span>Connect</span>
+      </a>
+    `);
+  }
+
   if (spotifyLink) {
     links.push(`
       <a href="${spotifyLink}" target="_blank" rel="noopener noreferrer" class="pill-btn" aria-label="Open on Spotify">
@@ -94,17 +106,123 @@ function renderTopbarLinks(spotifyUrl) {
     `);
   }
 
-  if (config.links?.instagram) {
-    links.push(`
-      <a href="${config.links.instagram}" target="_blank" rel="noopener noreferrer" class="pill-btn" aria-label="Instagram">
-        <svg class="pill-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-        <span>Instagram</span>
-        <span class="pill-arrow">↗</span>
-      </a>
-    `);
+  elTopbarLinks.innerHTML = links.join('');
+
+  document.getElementById('btn-logout')?.addEventListener('click', async () => {
+    await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+    window.location.reload();
+  });
+}
+
+async function fetchAccessToken() {
+  const response = await fetch(`${API_BASE}/auth/token`);
+  if (!response.ok) return null;
+  const data = await response.json();
+  return data.access_token || null;
+}
+
+async function refreshTokenForSdk(cb) {
+  const token = await fetchAccessToken();
+  if (token) {
+    accessToken = token;
+    cb(token);
+  }
+}
+
+function initWebPlaybackSdk() {
+  if (window.Spotify) {
+    createSpotifyPlayer();
+    return;
   }
 
-  elTopbarLinks.innerHTML = links.join('');
+  window.onSpotifyWebPlaybackSDKReady = createSpotifyPlayer;
+
+  if (!document.getElementById('spotify-sdk')) {
+    const script = document.createElement('script');
+    script.id = 'spotify-sdk';
+    script.src = 'https://sdk.scdn.co/spotify-player.js';
+    script.async = true;
+    document.body.appendChild(script);
+  }
+}
+
+function createSpotifyPlayer() {
+  if (spotifyPlayer || !accessToken) return;
+
+  spotifyPlayer = new window.Spotify.Player({
+    name: config.name || 'Chai aur Sutta',
+    getOAuthToken: refreshTokenForSdk,
+    volume: 0.85,
+  });
+
+  spotifyPlayer.addListener('ready', ({ device_id }) => {
+    deviceId = device_id;
+    isReady = true;
+    if (elBtnPlay) elBtnPlay.disabled = false;
+  });
+
+  spotifyPlayer.addListener('not_ready', () => {
+    isReady = false;
+  });
+
+  spotifyPlayer.addListener('initialization_error', ({ message }) => {
+    showToast(message);
+  });
+
+  spotifyPlayer.addListener('authentication_error', () => {
+    isAuthenticated = false;
+    showToast('Spotify session expired — connect again');
+    renderTopbarLinks(playlistMeta?.spotifyUrl);
+  });
+
+  spotifyPlayer.addListener('account_error', () => {
+    showToast('Spotify Premium is required for playback');
+  });
+
+  spotifyPlayer.addListener('player_state_changed', (state) => {
+    if (!state) return;
+
+    playbackPosition = (state.position || 0) / 1000;
+    playbackDuration = (state.duration || 0) / 1000;
+    setPlaying(!state.paused);
+
+    const track = state.track_window?.current_track;
+    if (track) syncFromSdkTrack(track);
+
+    if (!isDraggingSeek) {
+      updateSeekBar(playbackPosition, playbackDuration);
+    }
+  });
+
+  spotifyPlayer.connect();
+}
+
+async function startPlaylistPlayback() {
+  if (!deviceId || !accessToken || !config.spotifyPlaylistId) return;
+
+  const response = await fetch(
+    `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        context_uri: `spotify:playlist:${config.spotifyPlaylistId}`,
+      }),
+    }
+  );
+
+  if (response.status === 401) {
+    showToast('Session expired — connect Spotify again');
+    return;
+  }
+
+  if (!response.ok && response.status !== 204) {
+    const err = await response.json().catch(() => ({}));
+    showToast(err.error?.message || 'Could not start playlist');
+  }
 }
 
 async function loadPlaylist() {
@@ -113,6 +231,17 @@ async function loadPlaylist() {
     showToast('Add your Spotify playlist ID in config.js');
     return;
   }
+
+  accessToken = await fetchAccessToken();
+  isAuthenticated = Boolean(accessToken);
+
+  if (isAuthenticated) {
+    initWebPlaybackSdk();
+  } else if (elBtnPlay) {
+    elBtnPlay.disabled = false;
+  }
+
+  renderTopbarLinks();
 
   try {
     const response = await fetch(`${API_BASE}/playlist?id=${encodeURIComponent(playlistId)}`);
@@ -125,7 +254,6 @@ async function loadPlaylist() {
 
     playlistMeta = data;
     playlist = data.tracks || [];
-
     renderTopbarLinks(data.spotifyUrl);
 
     if (playlist.length === 0) {
@@ -133,250 +261,73 @@ async function loadPlaylist() {
       return;
     }
 
-    shuffleStartIndex();
+    if (elStationTagline && data.name) {
+      elStationTagline.textContent = data.name;
+    }
+
+    currentIndex = 0;
     updateTrackUI(currentIndex);
-    initYouTubeEngine();
   } catch (error) {
-    if (elTrackName) elTrackName.textContent = 'Could not load playlist';
-    if (elTrackArtist) elTrackArtist.textContent = error.message;
-    showToast(error.message);
-  }
-}
-
-function shuffleStartIndex() {
-  currentIndex = Math.floor(Math.random() * playlist.length);
-}
-
-async function resolveYouTubeId(track) {
-  const cacheKey = track.id;
-  if (youtubeCache.has(cacheKey)) {
-    return youtubeCache.get(cacheKey);
-  }
-
-  const queries = [
-    `${track.artist} ${track.title} hindi song`,
-    `${track.title} ${track.artist}`,
-    `${track.title} official video`,
-  ];
-
-  for (const query of queries) {
-    try {
-      const response = await fetch(`${API_BASE}/youtube-search?q=${encodeURIComponent(query)}`);
-      if (!response.ok) continue;
-      const data = await response.json();
-      if (data.videoId) {
-        youtubeCache.set(cacheKey, data.videoId);
-        return data.videoId;
-      }
-    } catch {
-      // try next query
+    if (elTrackName) elTrackName.textContent = config.name || 'Chai aur Sutta';
+    if (elTrackArtist) {
+      elTrackArtist.textContent = isAuthenticated
+        ? 'Tap play to start your playlist'
+        : 'Connect Spotify, then hit play';
     }
+    if (!isAuthenticated) showToast('Connect Spotify to play your playlist');
   }
-
-  youtubeCache.set(cacheKey, null);
-  return null;
 }
 
-function initYouTubeEngine() {
-  if (window.YT?.Player) {
-    createYouTubePlayer();
+function syncFromSdkTrack(track) {
+  if (elTrackName) elTrackName.textContent = track.name;
+  if (elTrackArtist) {
+    const artists = (track.artists || []).map((a) => a.name).join(', ');
+    const album = track.album?.name;
+    elTrackArtist.textContent = album ? `${artists} • ${album}` : artists;
+  }
+
+  const cover = track.album?.images?.[0]?.url;
+  if (cover && elArtImg && elArtPlaceholder) {
+    elArtImg.src = cover;
+    elArtImg.classList.add('loaded');
+    elArtPlaceholder.style.display = 'none';
+  }
+}
+
+async function togglePlay() {
+  if (!isAuthenticated) {
+    window.location.href = '/api/auth/login';
     return;
   }
 
-  const tag = document.createElement('script');
-  tag.src = 'https://www.youtube.com/iframe_api';
-  document.head.appendChild(tag);
-}
-
-window.onYouTubeIframeAPIReady = function () {
-  createYouTubePlayer();
-};
-
-function createYouTubePlayer() {
-  if (ytPlayer) return;
-
-  ytPlayer = new YT.Player('yt-audio-player', {
-    height: '1',
-    width: '1',
-    playerVars: {
-      autoplay: 0,
-      controls: 0,
-      disablekb: 1,
-      fs: 0,
-      iv_load_policy: 3,
-      modestbranding: 1,
-      rel: 0,
-      playsinline: 1,
-      origin: window.location.origin,
-    },
-    events: {
-      onReady: onPlayerReady,
-      onStateChange: onYouTubeStateChange,
-      onError: onYouTubeError,
-    },
-  });
-}
-
-function onPlayerReady() {
-  isReady = true;
-  if (elBtnPlay) elBtnPlay.disabled = false;
-  if (playlist.length) prepareTrack(currentIndex);
-}
-
-function onYouTubeStateChange(event) {
-  if (playbackMode !== 'youtube') return;
-
-  const S = YT.PlayerState;
-  if (event.data === S.PLAYING) {
-    setPlaying(true);
-    isSkipLocked = false;
-    startSeekUpdater();
-  } else if (event.data === S.PAUSED) {
-    setPlaying(false);
-  } else if (event.data === S.ENDED) {
-    setPlaying(false);
-    nextTrack();
-  }
-}
-
-function onYouTubeError() {
-  if (playbackMode !== 'youtube' || isSkipLocked) return;
-  isSkipLocked = true;
-  showToast('Skipping to next track…');
-  setTimeout(() => {
-    isSkipLocked = false;
-    nextTrack();
-  }, 800);
-}
-
-async function prepareTrack(index) {
-  if (!playlist.length) return;
-
-  currentIndex = ((index % playlist.length) + playlist.length) % playlist.length;
-  const track = playlist[currentIndex];
-
-  const youtubeId = await resolveYouTubeId(track);
-  if (youtubeId && ytPlayer?.cueVideoById) {
-    playbackMode = 'youtube';
-    ytPlayer.cueVideoById(youtubeId);
+  if (!spotifyPlayer) {
+    showToast('Connecting to Spotify…');
     return;
   }
 
-  if (track.previewUrl) {
-    playbackMode = 'preview';
-    previewAudio.src = track.previewUrl;
+  if (!hasStarted) {
+    hasStarted = true;
+    await startPlaylistPlayback();
     return;
   }
 
-  playbackMode = 'none';
+  await spotifyPlayer.togglePlay();
 }
 
-async function playTrackAt(index) {
-  if (!playlist.length) return;
-
-  currentIndex = ((index % playlist.length) + playlist.length) % playlist.length;
-  const track = playlist[currentIndex];
-  updateTrackUI(currentIndex);
-
-  stopPreview();
-  if (ytPlayer?.stopVideo) {
-    try { ytPlayer.stopVideo(); } catch (_) {}
-  }
-
-  const youtubeId = await resolveYouTubeId(track);
-  if (youtubeId && ytPlayer?.loadVideoById && hasUserStarted) {
-    playbackMode = 'youtube';
-    ytPlayer.loadVideoById(youtubeId);
-    return;
-  }
-
-  if (youtubeId && ytPlayer?.cueVideoById && !hasUserStarted) {
-    playbackMode = 'youtube';
-    ytPlayer.cueVideoById(youtubeId);
-    return;
-  }
-
-  if (track.previewUrl) {
-    playbackMode = 'preview';
-    previewAudio.src = track.previewUrl;
-    if (hasUserStarted) {
-      try {
-        await previewAudio.play();
-        setPlaying(true);
-      } catch {
-        showToast('Tap play to start listening');
-      }
-    }
-    return;
-  }
-
-  playbackMode = 'none';
-  showToast('Could not find audio for this track — skipping…');
-  if (hasUserStarted) {
-    setTimeout(() => nextTrack(), 1200);
-  }
+async function nextTrack() {
+  if (!spotifyPlayer || !isAuthenticated) return;
+  await spotifyPlayer.nextTrack();
 }
 
-function stopPreview() {
-  previewAudio.pause();
-  previewAudio.currentTime = 0;
-}
+async function prevTrack() {
+  if (!spotifyPlayer || !isAuthenticated) return;
 
-previewAudio.addEventListener('ended', () => {
-  if (playbackMode === 'preview' && isPlaying) {
-    nextTrack();
-  }
-});
-
-previewAudio.addEventListener('timeupdate', () => {
-  if (playbackMode !== 'preview' || isDraggingSeek) return;
-  updateSeekBar(previewAudio.currentTime, previewAudio.duration || 0);
-});
-
-function togglePlay() {
-  if (!isReady || !playlist.length) return;
-  hasUserStarted = true;
-
-  if (isPlaying) {
-    if (playbackMode === 'youtube' && ytPlayer?.pauseVideo) {
-      ytPlayer.pauseVideo();
-    } else if (playbackMode === 'preview') {
-      previewAudio.pause();
-      setPlaying(false);
-    }
+  if (playbackPosition > 3) {
+    await spotifyPlayer.seek(0);
     return;
   }
 
-  if (playbackMode === 'youtube' && ytPlayer?.playVideo) {
-    ytPlayer.playVideo();
-  } else if (playbackMode === 'preview' && previewAudio.src) {
-    previewAudio.play().then(() => setPlaying(true)).catch(() => {
-      showToast('Playback blocked — tap play again');
-    });
-  } else {
-    playTrackAt(currentIndex);
-  }
-}
-
-function nextTrack() {
-  hasUserStarted = true;
-  playTrackAt(currentIndex + 1);
-}
-
-function prevTrack() {
-  hasUserStarted = true;
-
-  if (playbackMode === 'youtube' && ytPlayer?.getCurrentTime?.() > 3) {
-    ytPlayer.seekTo(0, true);
-    return;
-  }
-
-  if (playbackMode === 'preview' && previewAudio.currentTime > 3) {
-    previewAudio.currentTime = 0;
-    return;
-  }
-
-  playTrackAt(currentIndex - 1);
+  await spotifyPlayer.previousTrack();
 }
 
 function setPlaying(state) {
@@ -386,9 +337,6 @@ function setPlaying(state) {
     elIconPlay.style.display = state ? 'none' : 'block';
     elIconPause.style.display = state ? 'block' : 'none';
   }
-
-  if (state) startSeekUpdater();
-  else stopSeekUpdater();
 }
 
 function updateTrackUI(index) {
@@ -421,7 +369,7 @@ function updateTrackUI(index) {
   }
 
   const totalSecs = track.durationMs ? track.durationMs / 1000 : 0;
-  updateSeekBar(0, totalSecs);
+  updateSeekBar(playbackPosition, totalSecs || playbackDuration);
 }
 
 function formatTime(secs) {
@@ -439,28 +387,6 @@ function updateSeekBar(current, total) {
   if (elTimeTot) elTimeTot.textContent = formatTime(total);
 }
 
-function startSeekUpdater() {
-  stopSeekUpdater();
-  seekInterval = setInterval(() => {
-    if (isDraggingSeek || !isPlaying) return;
-
-    if (playbackMode === 'youtube' && ytPlayer?.getCurrentTime) {
-      try {
-        const cur = ytPlayer.getCurrentTime() || 0;
-        const tot = ytPlayer.getDuration() || 0;
-        updateSeekBar(cur, tot);
-      } catch (_) {}
-    }
-  }, 400);
-}
-
-function stopSeekUpdater() {
-  if (seekInterval) {
-    clearInterval(seekInterval);
-    seekInterval = null;
-  }
-}
-
 function seekPct(e) {
   if (!elSeekBar) return 0;
   const rect = elSeekBar.getBoundingClientRect();
@@ -470,32 +396,21 @@ function seekPct(e) {
 }
 
 function handleSeekCommit(pct) {
-  if (playbackMode === 'youtube' && ytPlayer?.getDuration) {
-    const tot = ytPlayer.getDuration() || 0;
-    ytPlayer.seekTo(pct * tot, true);
-    updateSeekBar(pct * tot, tot);
-  } else if (playbackMode === 'preview' && previewAudio.duration) {
-    previewAudio.currentTime = pct * previewAudio.duration;
-    updateSeekBar(previewAudio.currentTime, previewAudio.duration);
-  }
+  if (!spotifyPlayer || !playbackDuration) return;
+  spotifyPlayer.seek(Math.floor(pct * playbackDuration * 1000));
+  updateSeekBar(pct * playbackDuration, playbackDuration);
 }
 
 if (elSeekBar) {
   const onSeekStart = (e) => {
     if (!isReady) return;
     isDraggingSeek = true;
-    const tot = playbackMode === 'youtube'
-      ? (ytPlayer?.getDuration?.() || 0)
-      : (previewAudio.duration || 0);
-    updateSeekBar(seekPct(e) * tot, tot);
+    updateSeekBar(seekPct(e) * playbackDuration, playbackDuration);
   };
 
   const onSeekMove = (e) => {
     if (!isDraggingSeek) return;
-    const tot = playbackMode === 'youtube'
-      ? (ytPlayer?.getDuration?.() || 0)
-      : (previewAudio.duration || 0);
-    updateSeekBar(seekPct(e) * tot, tot);
+    updateSeekBar(seekPct(e) * playbackDuration, playbackDuration);
   };
 
   const onSeekEnd = (e) => {
@@ -529,7 +444,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 const timeFormatter = new Intl.DateTimeFormat('en-US', {
-  timeZone: config.timezone || 'America/New_York',
+  timeZone: config.timezone || 'Asia/Kolkata',
   hour: 'numeric',
   minute: '2-digit',
   hour12: true,
@@ -566,4 +481,8 @@ updateClock();
 updateLiveCount();
 setInterval(updateClock, 1000);
 setInterval(updateLiveCount, 6000);
+
+const authError = new URLSearchParams(window.location.search).get('auth_error');
+if (authError) showToast(`Spotify login failed: ${authError}`);
+
 loadPlaylist();

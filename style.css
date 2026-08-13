@@ -161,6 +161,7 @@ html, body {
   text-decoration: none;
   transition: all 0.2s ease;
   cursor: pointer;
+  font-family: inherit;
 }
 
 .pill-btn:hover {
