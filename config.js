@@ -24,7 +24,8 @@ window.SITE_CONFIG = {
     twitter: '',
   },
 
-  // ── Live listener count (simulated) ────────────────────
+  // ── Live listener count (decorative, not real — like Pan Wala) ─
+  showLiveCount: true,
   liveCountBase: 28,
 
   // ── Rotating hero taglines ─────────────────────────────
