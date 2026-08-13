@@ -8,7 +8,7 @@ window.SITE_CONFIG = {
 
   // ── Spotify playlist ───────────────────────────────────
   // Paste the ID from: open.spotify.com/playlist/THIS_PART
-  spotifyPlaylistId: '37i9dQZF1DXcBWIGoYBM5M',
+  spotifyPlaylistId: '7EYoTdOiNJlQwQSyzNQ6KB',
 
   // ── Visual theme ───────────────────────────────────────
   themeColor: '#1a1008',
