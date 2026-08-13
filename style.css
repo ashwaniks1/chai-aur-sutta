@@ -253,14 +253,23 @@ html, body {
 
 .player-wrap {
   width: 100%;
+  max-width: 490px;
   display: flex;
   justify-content: center;
   pointer-events: auto;
 }
 
-.player-card {
+.player-area {
   width: 100%;
-  max-width: 490px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 14px;
+  pointer-events: auto;
+  flex-wrap: wrap;
+}
+
+.glass-panel {
   background: rgba(26, 16, 8, 0.78);
   backdrop-filter: blur(28px) saturate(160%);
   -webkit-backdrop-filter: blur(28px) saturate(160%);
@@ -269,10 +278,107 @@ html, body {
   box-shadow:
     0 20px 48px rgba(0, 0, 0, 0.65),
     0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.player-card {
+  width: 100%;
   padding: 10px 16px 10px 12px;
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+.upnext-panel {
+  width: 100%;
+  max-width: 300px;
+  padding: 12px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upnext-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--white-50);
+  padding: 0 2px;
+}
+
+.upnext-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.upnext-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+
+.upnext-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.upnext-num {
+  width: 16px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--white-50);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.upnext-thumb-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.upnext-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.upnext-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.upnext-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.upnext-artist {
+  font-size: 11px;
+  color: var(--white-75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.upnext-empty {
+  font-size: 12px;
+  color: var(--white-50);
+  padding: 8px 4px;
 }
 
 .art-wrap {
@@ -458,6 +564,18 @@ html, body {
 
   .pill-btn span:not(.pill-arrow) {
     display: none;
+  }
+
+  .player-area {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .upnext-panel {
+    max-width: 490px;
+    border-radius: 24px;
+    padding: 10px 12px 8px;
   }
 
   .player-card {

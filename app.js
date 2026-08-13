@@ -40,6 +40,7 @@ const elTopbarLinks = document.getElementById('topbar-links');
 const elHeroBgBase = document.getElementById('hero-bg-base');
 const elHeroBgArt = document.getElementById('hero-bg-art');
 const elHeroBgVideo = document.getElementById('hero-bg-video');
+const elUpnextList = document.getElementById('upnext-list');
 
 let songFactLines = [];
 let songFactIndex = 0;
@@ -463,6 +464,46 @@ function setPlaying(state) {
   else stopSeekUpdater();
 }
 
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderUpNext() {
+  if (!elUpnextList) return;
+
+  if (!playlist.length) {
+    elUpnextList.innerHTML = '<li class="upnext-empty">Loading playlist…</li>';
+    return;
+  }
+
+  const items = [];
+  for (let i = 1; i <= 5; i += 1) {
+    const idx = (currentIndex + i) % playlist.length;
+    items.push(playlist[idx]);
+  }
+
+  elUpnextList.innerHTML = items.map((track, i) => {
+    const thumb = track.cover
+      ? `<img class="upnext-thumb" src="${escapeHtml(track.cover)}" alt="" loading="lazy" />`
+      : '';
+
+    return `
+      <li class="upnext-item">
+        <span class="upnext-num">${i + 1}</span>
+        <div class="upnext-thumb-wrap">${thumb}</div>
+        <div class="upnext-meta">
+          <p class="upnext-title">${escapeHtml(track.title)}</p>
+          <p class="upnext-artist">${escapeHtml(track.artist)}</p>
+        </div>
+      </li>
+    `;
+  }).join('');
+}
+
 function updateTrackUI(index) {
   const track = playlist[index];
   if (!track) return;
@@ -497,6 +538,7 @@ function updateTrackUI(index) {
 
   updateHeroBackground(track.cover);
   loadSongFacts(track);
+  renderUpNext();
 }
 
 function formatTime(secs) {
