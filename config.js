@@ -12,8 +12,7 @@ window.SITE_CONFIG = {
 
   // ── Visual theme ───────────────────────────────────────
   themeColor: '#1a1008',
-  heroVideo: 'hero-bg.mp4', // looping adda vibe (Mixkit, free license)
-  heroImage: 'hero-bg.jpg', // poster + fallback — college friends at tapri
+  heroImage: 'hero-bg.jpg', // chai tapri + school/college friends — slow zoom loop
 
   // ── Clock timezone (IANA name) ─────────────────────────
   timezone: 'Asia/Kolkata',
