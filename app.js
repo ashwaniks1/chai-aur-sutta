@@ -37,13 +37,21 @@ const elToast = document.getElementById('toast');
 const elStationName = document.getElementById('station-name');
 const elStationTagline = document.getElementById('station-tagline');
 const elTopbarLinks = document.getElementById('topbar-links');
+const elHeroBgBase = document.getElementById('hero-bg-base');
+const elHeroBgArt = document.getElementById('hero-bg-art');
+
+let songFactLines = [];
+let songFactIndex = 0;
+let songFactTrackId = null;
+let taglineTimer = null;
+const factCache = new Map();
 
 function applySiteConfig() {
   document.documentElement.style.setProperty('--theme-color', config.themeColor || '#1a1008');
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', config.themeColor || '#1a1008');
 
-  if (config.heroImage) {
-    document.documentElement.style.setProperty('--hero-image', `url('${config.heroImage}')`);
+  if (config.heroImage && elHeroBgBase) {
+    elHeroBgBase.style.backgroundImage = `url('${config.heroImage}')`;
   }
 
   const title = `${config.name || 'Chai aur Sutta'} ❤️ — 90s & 2000s Bollywood Radio`;
@@ -60,26 +68,82 @@ function applySiteConfig() {
   }
 }
 
-let taglineIndex = 0;
-function rotateTagline() {
-  const lines = config.rotatingTaglines;
-  if (!lines?.length || !elStationTagline) return;
+function fadeTaglineTo(text) {
+  if (!elStationTagline || !text) return;
 
   elStationTagline.style.opacity = '0';
   elStationTagline.style.transform = 'translateY(4px)';
 
   setTimeout(() => {
-    taglineIndex = (taglineIndex + 1) % lines.length;
-    elStationTagline.textContent = lines[taglineIndex];
+    elStationTagline.textContent = text;
     elStationTagline.style.opacity = '1';
     elStationTagline.style.transform = 'translateY(0)';
   }, 220);
 }
 
-function initRotatingTaglines() {
-  if (!elStationTagline || !config.rotatingTaglines?.length) return;
+function rotateTaglineContent() {
+  const lines = songFactLines.length ? songFactLines : config.rotatingTaglines;
+  if (!lines?.length) return;
+
+  songFactIndex = (songFactIndex + 1) % lines.length;
+  fadeTaglineTo(lines[songFactIndex]);
+}
+
+function initTaglineRotation() {
+  if (!elStationTagline) return;
+
   elStationTagline.style.transition = 'opacity 0.22s ease, transform 0.22s ease';
-  setInterval(rotateTagline, 5500);
+  if (taglineTimer) clearInterval(taglineTimer);
+  taglineTimer = setInterval(rotateTaglineContent, 5500);
+}
+
+async function loadSongFacts(track) {
+  if (!track?.id) return;
+
+  songFactTrackId = track.id;
+
+  if (factCache.has(track.id)) {
+    songFactLines = factCache.get(track.id);
+    songFactIndex = 0;
+    fadeTaglineTo(songFactLines[0]);
+    return;
+  }
+
+  fadeTaglineTo('Did you know…');
+
+  const params = new URLSearchParams({
+    title: track.title,
+    artist: track.artist,
+    album: track.album || '',
+    year: track.releaseYear || '',
+  });
+
+  try {
+    const response = await fetch(`${API_BASE}/track-fact?${params}`);
+    const data = await response.json();
+    if (songFactTrackId !== track.id) return;
+
+    songFactLines = data.facts?.length ? data.facts : (config.rotatingTaglines || []);
+    factCache.set(track.id, songFactLines);
+    songFactIndex = 0;
+    fadeTaglineTo(songFactLines[0]);
+  } catch {
+    if (songFactTrackId !== track.id) return;
+    songFactLines = config.rotatingTaglines || [];
+    songFactIndex = 0;
+    fadeTaglineTo(songFactLines[0] || config.tagline || '');
+  }
+}
+
+function updateHeroBackground(coverUrl) {
+  if (!elHeroBgArt) return;
+
+  if (coverUrl) {
+    elHeroBgArt.style.backgroundImage = `url('${coverUrl}')`;
+    elHeroBgArt.classList.add('visible');
+  } else {
+    elHeroBgArt.classList.remove('visible');
+  }
 }
 
 function renderTopbarLinks(spotifyUrl) {
@@ -138,6 +202,7 @@ async function loadPlaylist() {
 
     shuffleStartIndex();
     updateTrackUI(currentIndex);
+    if (data.cover) updateHeroBackground(data.cover);
     initYouTubeEngine();
   } catch (error) {
     if (elTrackName) elTrackName.textContent = 'Could not load playlist';
@@ -156,28 +221,22 @@ async function resolveYouTubeId(track) {
     return youtubeCache.get(cacheKey);
   }
 
-  const queries = [
-    `${track.artist} ${track.title} hindi song`,
-    `${track.title} ${track.artist}`,
-    `${track.title} official video`,
-  ];
+  const query = `${track.title} ${track.artist} original`.replace(/\s+/g, ' ').trim();
 
-  for (const query of queries) {
-    try {
-      const response = await fetch(`${API_BASE}/youtube-search?q=${encodeURIComponent(query)}`);
-      if (!response.ok) continue;
-      const data = await response.json();
-      if (data.videoId) {
-        youtubeCache.set(cacheKey, data.videoId);
-        return data.videoId;
-      }
-    } catch {
-      // try next query
+  try {
+    const response = await fetch(`${API_BASE}/youtube-search?q=${encodeURIComponent(query)}`);
+    if (!response.ok) {
+      youtubeCache.set(cacheKey, null);
+      return null;
     }
+    const data = await response.json();
+    const videoId = data.videoId || null;
+    youtubeCache.set(cacheKey, videoId);
+    return videoId;
+  } catch {
+    youtubeCache.set(cacheKey, null);
+    return null;
   }
-
-  youtubeCache.set(cacheKey, null);
-  return null;
 }
 
 function initYouTubeEngine() {
@@ -425,6 +484,9 @@ function updateTrackUI(index) {
 
   const totalSecs = track.durationMs ? track.durationMs / 1000 : 0;
   updateSeekBar(0, totalSecs);
+
+  updateHeroBackground(track.cover);
+  loadSongFacts(track);
 }
 
 function formatTime(secs) {
@@ -564,7 +626,7 @@ function showToast(message) {
 }
 
 applySiteConfig();
-initRotatingTaglines();
+initTaglineRotation();
 updateClock();
 updateLiveCount();
 setInterval(updateClock, 1000);

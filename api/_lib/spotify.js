@@ -64,6 +64,7 @@ function normalizeTrack(rawTrack) {
     artist: (rawTrack.artists || []).map((a) => a.name).join(', '),
     album: rawTrack.album?.name || '',
     cover: rawTrack.album?.images?.[0]?.url || '',
+    releaseYear: rawTrack.album?.release_date?.slice(0, 4) || '',
     durationMs: rawTrack.duration_ms,
     previewUrl: rawTrack.preview_url,
     spotifyUrl: rawTrack.external_urls?.spotify || '',
@@ -73,7 +74,7 @@ function normalizeTrack(rawTrack) {
 export async function fetchAllPlaylistTracks(token, playlistId) {
   const tracks = [];
   const fields =
-    'items(item(type,id,name,artists(name),album(name,images),duration_ms,preview_url,external_urls),track(id,name,artists(name),album(name,images),duration_ms,preview_url,external_urls)),next';
+    'items(item(type,id,name,artists(name),album(name,images,release_date),duration_ms,preview_url,external_urls),track(id,name,artists(name),album(name,images,release_date),duration_ms,preview_url,external_urls)),next';
   let url = `${SPOTIFY_API_BASE}/playlists/${playlistId}/items?limit=50&market=IN&fields=${encodeURIComponent(fields)}`;
 
   while (url) {

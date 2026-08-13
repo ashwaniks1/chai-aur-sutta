@@ -33,12 +33,44 @@ html, body {
   position: fixed;
   inset: 0;
   z-index: 0;
+  overflow: hidden;
+}
+
+.hero-bg-base {
+  position: absolute;
+  inset: 0;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.55) 100%),
-    var(--hero-image, linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%));
+    radial-gradient(ellipse 80% 60% at 50% 20%, rgba(180, 90, 40, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 80% 80%, rgba(120, 50, 30, 0.18) 0%, transparent 50%),
+    linear-gradient(160deg, #1a0f0a 0%, #2a1810 38%, #1a1008 72%, #0a0604 100%);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+}
+
+.hero-bg-art {
+  position: absolute;
+  inset: -25%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(56px) saturate(1.35) brightness(0.85);
+  opacity: 0;
+  transform: scale(1.08);
+  transition: opacity 1.4s ease, background-image 0.6s ease;
+  will-change: opacity, background-image;
+}
+
+.hero-bg-art.visible {
+  opacity: 0.62;
+}
+
+.hero-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.55) 55%, rgba(0, 0, 0, 0.72) 100%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.15) 0%, transparent 50%, rgba(0, 0, 0, 0.15) 100%);
+  pointer-events: none;
 }
 
 .hidden-player-container {
@@ -200,9 +232,11 @@ html, body {
 
 .station-tagline {
   margin-top: 10px;
+  max-width: min(640px, 92vw);
   font-size: clamp(0.95rem, 2.5vw, 1.15rem);
   color: var(--white-75);
   font-weight: 500;
+  line-height: 1.45;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
 
