@@ -153,16 +153,28 @@ async function resolveYouTubeId(track) {
     return youtubeCache.get(cacheKey);
   }
 
-  const query = `${track.artist} ${track.title} official audio`;
-  try {
-    const response = await fetch(`${API_BASE}/youtube-search?q=${encodeURIComponent(query)}`);
-    if (!response.ok) return null;
-    const data = await response.json();
-    youtubeCache.set(cacheKey, data.videoId);
-    return data.videoId;
-  } catch {
-    return null;
+  const queries = [
+    `${track.artist} ${track.title} hindi song`,
+    `${track.title} ${track.artist}`,
+    `${track.title} official video`,
+  ];
+
+  for (const query of queries) {
+    try {
+      const response = await fetch(`${API_BASE}/youtube-search?q=${encodeURIComponent(query)}`);
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (data.videoId) {
+        youtubeCache.set(cacheKey, data.videoId);
+        return data.videoId;
+      }
+    } catch {
+      // try next query
+    }
   }
+
+  youtubeCache.set(cacheKey, null);
+  return null;
 }
 
 function initYouTubeEngine() {
@@ -208,6 +220,7 @@ function createYouTubePlayer() {
 function onPlayerReady() {
   isReady = true;
   if (elBtnPlay) elBtnPlay.disabled = false;
+  if (playlist.length) prepareTrack(currentIndex);
 }
 
 function onYouTubeStateChange(event) {
@@ -236,6 +249,28 @@ function onYouTubeError() {
   }, 800);
 }
 
+async function prepareTrack(index) {
+  if (!playlist.length) return;
+
+  currentIndex = ((index % playlist.length) + playlist.length) % playlist.length;
+  const track = playlist[currentIndex];
+
+  const youtubeId = await resolveYouTubeId(track);
+  if (youtubeId && ytPlayer?.cueVideoById) {
+    playbackMode = 'youtube';
+    ytPlayer.cueVideoById(youtubeId);
+    return;
+  }
+
+  if (track.previewUrl) {
+    playbackMode = 'preview';
+    previewAudio.src = track.previewUrl;
+    return;
+  }
+
+  playbackMode = 'none';
+}
+
 async function playTrackAt(index) {
   if (!playlist.length) return;
 
@@ -248,20 +283,17 @@ async function playTrackAt(index) {
     try { ytPlayer.stopVideo(); } catch (_) {}
   }
 
-  if (hasUserStarted) {
-    const youtubeId = await resolveYouTubeId(track);
-    if (youtubeId && ytPlayer?.loadVideoById) {
-      playbackMode = 'youtube';
-      ytPlayer.loadVideoById(youtubeId);
-      return;
-    }
-  } else if (ytPlayer?.cueVideoById) {
-    const youtubeId = await resolveYouTubeId(track);
-    if (youtubeId) {
-      playbackMode = 'youtube';
-      ytPlayer.cueVideoById(youtubeId);
-      return;
-    }
+  const youtubeId = await resolveYouTubeId(track);
+  if (youtubeId && ytPlayer?.loadVideoById && hasUserStarted) {
+    playbackMode = 'youtube';
+    ytPlayer.loadVideoById(youtubeId);
+    return;
+  }
+
+  if (youtubeId && ytPlayer?.cueVideoById && !hasUserStarted) {
+    playbackMode = 'youtube';
+    ytPlayer.cueVideoById(youtubeId);
+    return;
   }
 
   if (track.previewUrl) {
@@ -279,7 +311,7 @@ async function playTrackAt(index) {
   }
 
   playbackMode = 'none';
-  showToast('No playback available — open in Spotify');
+  showToast('Could not find audio for this track — skipping…');
   if (hasUserStarted) {
     setTimeout(() => nextTrack(), 1200);
   }

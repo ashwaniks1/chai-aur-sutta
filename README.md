@@ -94,8 +94,9 @@ In the Vercel dashboard, add:
 
 | Mode | Requirement | Experience |
 |------|-------------|------------|
-| YouTube | `YOUTUBE_API_KEY` set | Full songs (same idea as Pan Wala) |
-| Spotify preview | Always available | 30-second clips per track |
+| YouTube | Automatic (no key needed) | Full songs via YouTube search |
+| YouTube Data API | `YOUTUBE_API_KEY` optional | Faster/more reliable search |
+| Spotify preview | Fallback only | 30-second clips (rare for Bollywood) |
 | Open in Spotify | Top-bar link | Full playback in Spotify app |
 
 ## Project structure
