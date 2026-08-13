@@ -48,6 +48,17 @@ html, body {
   background-repeat: no-repeat;
 }
 
+.hero-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.48;
+  filter: saturate(1.15) brightness(0.72) contrast(1.05);
+  transform: scale(1.03);
+}
+
 .hero-bg-art {
   position: absolute;
   inset: -25%;
@@ -61,7 +72,7 @@ html, body {
 }
 
 .hero-bg-art.visible {
-  opacity: 0.62;
+  opacity: 0.38;
 }
 
 .hero-bg-overlay {

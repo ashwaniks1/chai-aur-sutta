@@ -39,6 +39,7 @@ const elStationTagline = document.getElementById('station-tagline');
 const elTopbarLinks = document.getElementById('topbar-links');
 const elHeroBgBase = document.getElementById('hero-bg-base');
 const elHeroBgArt = document.getElementById('hero-bg-art');
+const elHeroBgVideo = document.getElementById('hero-bg-video');
 
 let songFactLines = [];
 let songFactIndex = 0;
@@ -51,7 +52,16 @@ function applySiteConfig() {
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', config.themeColor || '#1a1008');
 
   if (config.heroImage && elHeroBgBase) {
-    elHeroBgBase.style.backgroundImage = `url('${config.heroImage}')`;
+    elHeroBgBase.style.backgroundImage = `
+      linear-gradient(160deg, rgba(26, 15, 10, 0.55) 0%, rgba(26, 16, 8, 0.72) 100%),
+      url('${config.heroImage}')
+    `;
+  }
+
+  if (config.heroVideo && elHeroBgVideo) {
+    if (config.heroImage) elHeroBgVideo.poster = config.heroImage;
+    elHeroBgVideo.src = config.heroVideo;
+    elHeroBgVideo.play().catch(() => {});
   }
 
   const title = `${config.name || 'Chai aur Sutta'} ❤️ — 90s & 2000s Bollywood Radio`;
