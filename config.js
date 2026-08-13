@@ -28,12 +28,15 @@ window.SITE_CONFIG = {
   showLiveCount: true,
   liveCountBase: 28,
 
-  // ── Rotating hero taglines ─────────────────────────────
+  // ── Rotating hero taglines (chai & sutta vibes) ────────
   rotatingTaglines: [
-    'Ek cutting chai aur ye gaana — bas.',
+    'Ek cutting chai, ek sutta, aur ye gaana — bas.',
     'Tapri wali chai. Gali wale gaane.',
-    'Kumar Sanu se KK tak — non-stop.',
+    'Adda pe baith ke, volume full.',
+    'Chai thandi ho jaaye, gaana nahi.',
+    'Sutta ka dhuaan aur 90s ka gaana.',
+    'Wahi tapri. Wahi dost. Wahi feels.',
     'Mohabbat ka izhaar, volume full.',
-    'Wahi adda. Wahi feels. Wahi songs.',
+    'Kumar Sanu se KK tak — non-stop.',
   ],
 };

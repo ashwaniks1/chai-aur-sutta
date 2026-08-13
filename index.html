@@ -63,6 +63,11 @@
     </main>
 
     <div class="player-area" role="region" aria-label="Music player">
+      <aside class="upnext-panel glass-panel" id="upnext-panel" aria-label="Next in queue">
+        <p class="upnext-label">Next in queue</p>
+        <ol class="upnext-list" id="upnext-list"></ol>
+      </aside>
+
       <div class="player-wrap">
       <div class="player-card glass-panel" id="player-card">
 
@@ -112,11 +117,6 @@
 
       </div>
       </div>
-
-      <aside class="upnext-panel glass-panel" id="upnext-panel" aria-label="Up next">
-        <p class="upnext-label">Up next</p>
-        <ol class="upnext-list" id="upnext-list"></ol>
-      </aside>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

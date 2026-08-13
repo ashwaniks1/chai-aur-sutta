@@ -42,11 +42,8 @@ const elHeroBgScene = document.getElementById('hero-bg-scene');
 const elHeroBgArt = document.getElementById('hero-bg-art');
 const elUpnextList = document.getElementById('upnext-list');
 
-let songFactLines = [];
-let songFactIndex = 0;
-let songFactTrackId = null;
+let taglineIndex = 0;
 let taglineTimer = null;
-const factCache = new Map();
 
 function applySiteConfig() {
   document.documentElement.style.setProperty('--theme-color', config.themeColor || '#1a1008');
@@ -84,11 +81,11 @@ function fadeTaglineTo(text) {
 }
 
 function rotateTaglineContent() {
-  const lines = songFactLines.length ? songFactLines : config.rotatingTaglines;
-  if (!lines?.length) return;
+  const lines = config.rotatingTaglines;
+  if (!lines?.length || !elStationTagline) return;
 
-  songFactIndex = (songFactIndex + 1) % lines.length;
-  fadeTaglineTo(lines[songFactIndex]);
+  taglineIndex = (taglineIndex + 1) % lines.length;
+  fadeTaglineTo(lines[taglineIndex]);
 }
 
 function initTaglineRotation() {
@@ -97,44 +94,6 @@ function initTaglineRotation() {
   elStationTagline.style.transition = 'opacity 0.22s ease, transform 0.22s ease';
   if (taglineTimer) clearInterval(taglineTimer);
   taglineTimer = setInterval(rotateTaglineContent, 5500);
-}
-
-async function loadSongFacts(track) {
-  if (!track?.id) return;
-
-  songFactTrackId = track.id;
-
-  if (factCache.has(track.id)) {
-    songFactLines = factCache.get(track.id);
-    songFactIndex = 0;
-    fadeTaglineTo(songFactLines[0]);
-    return;
-  }
-
-  fadeTaglineTo('Did you know…');
-
-  const params = new URLSearchParams({
-    title: track.title,
-    artist: track.artist,
-    album: track.album || '',
-    year: track.releaseYear || '',
-  });
-
-  try {
-    const response = await fetch(`${API_BASE}/track-fact?${params}`);
-    const data = await response.json();
-    if (songFactTrackId !== track.id) return;
-
-    songFactLines = data.facts?.length ? data.facts : (config.rotatingTaglines || []);
-    factCache.set(track.id, songFactLines);
-    songFactIndex = 0;
-    fadeTaglineTo(songFactLines[0]);
-  } catch {
-    if (songFactTrackId !== track.id) return;
-    songFactLines = config.rotatingTaglines || [];
-    songFactIndex = 0;
-    fadeTaglineTo(songFactLines[0] || config.tagline || '');
-  }
 }
 
 function updateHeroBackground(coverUrl) {
@@ -528,7 +487,6 @@ function updateTrackUI(index) {
   updateSeekBar(0, totalSecs);
 
   updateHeroBackground(track.cover);
-  loadSongFacts(track);
   renderUpNext();
 }
 
@@ -670,6 +628,7 @@ function showToast(message) {
 
 applySiteConfig();
 initTaglineRotation();
+renderUpNext();
 updateClock();
 updateLiveCount();
 setInterval(updateClock, 1000);
