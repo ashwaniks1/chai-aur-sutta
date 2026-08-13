@@ -1,82 +1,8 @@
-const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
-const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
-
-let cachedToken = null;
-let tokenExpiresAt = 0;
-
-async function getSpotifyToken(clientId, clientSecret) {
-  if (cachedToken && Date.now() < tokenExpiresAt - 60_000) {
-    return cachedToken;
-  }
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  const response = await fetch(SPOTIFY_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: 'grant_type=client_credentials',
-  });
-
-  if (!response.ok) {
-    throw new Error(`Spotify auth failed (${response.status})`);
-  }
-
-  const data = await response.json();
-  cachedToken = data.access_token;
-  tokenExpiresAt = Date.now() + data.expires_in * 1000;
-  return cachedToken;
-}
-
-async function fetchAllPlaylistTracks(token, playlistId) {
-  const tracks = [];
-  let url = `${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks?limit=100&fields=items(track(id,name,artists(name),album(name,images),duration_ms,preview_url,external_urls)),next`;
-
-  while (url) {
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Spotify playlist fetch failed (${response.status})`);
-    }
-
-    const data = await response.json();
-    for (const item of data.items || []) {
-      const track = item.track;
-      if (!track?.id) continue;
-
-      tracks.push({
-        id: track.id,
-        title: track.name,
-        artist: track.artists.map((a) => a.name).join(', '),
-        album: track.album?.name || '',
-        cover: track.album?.images?.[0]?.url || '',
-        durationMs: track.duration_ms,
-        previewUrl: track.preview_url,
-        spotifyUrl: track.external_urls?.spotify || '',
-      });
-    }
-
-    url = data.next;
-  }
-
-  return tracks;
-}
-
-async function fetchPlaylistMeta(token, playlistId) {
-  const response = await fetch(
-    `${SPOTIFY_API_BASE}/playlists/${playlistId}?fields=name,description,images,external_urls,owner(display_name)`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Spotify playlist meta failed (${response.status})`);
-  }
-
-  return response.json();
-}
+import {
+  getAccessToken,
+  fetchAllPlaylistTracks,
+  fetchPlaylistMeta,
+} from './_lib/spotify.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -101,13 +27,21 @@ export default async function handler(req, res) {
     });
   }
 
+  if (!process.env.SPOTIFY_REFRESH_TOKEN) {
+    return res.status(500).json({
+      error: 'Missing Spotify refresh token',
+      hint:
+        'Spotify requires user authorization to read playlist tracks. Run: node scripts/get-spotify-refresh-token.js then add SPOTIFY_REFRESH_TOKEN to Vercel.',
+    });
+  }
+
   const playlistId = req.query.id || process.env.SPOTIFY_PLAYLIST_ID;
   if (!playlistId) {
     return res.status(400).json({ error: 'Missing playlist id' });
   }
 
   try {
-    const token = await getSpotifyToken(clientId, clientSecret);
+    const token = await getAccessToken(clientId, clientSecret);
     const [meta, tracks] = await Promise.all([
       fetchPlaylistMeta(token, playlistId),
       fetchAllPlaylistTracks(token, playlistId),
@@ -123,6 +57,15 @@ export default async function handler(req, res) {
       tracks,
     });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    const status = error.status || 500;
+    const hint =
+      status === 403
+        ? 'Ensure the playlist is yours (or you collaborate on it) and your Spotify account is added to the app allowlist in the Spotify Developer Dashboard.'
+        : undefined;
+
+    return res.status(status).json({
+      error: error.message,
+      hint,
+    });
   }
 }

@@ -4,7 +4,7 @@ A [Pan Wala](https://pan-wala.vercel.app)-style fullscreen radio page for 90s & 
 
 ## Features
 
-- Loads tracks dynamically from any **public** Spotify playlist
+- Loads tracks from **your** Spotify playlist (you must own it or collaborate on it)
 - Pan Wala–inspired UI: hero background, floating glass player, live clock
 - Full-track playback via YouTube search (optional)
 - Falls back to Spotify 30-second previews when YouTube is unavailable
@@ -18,7 +18,24 @@ A [Pan Wala](https://pan-wala.vercel.app)-style fullscreen radio page for 90s & 
 2. Create an app
 3. Copy **Client ID** and **Client Secret**
 
-### 2. Configure your site
+### 2. Spotify refresh token (required)
+
+Spotify no longer allows playlist track access with Client ID/Secret alone. You need a one-time user authorization:
+
+1. In your [Spotify app settings](https://developer.spotify.com/dashboard), add Redirect URI:
+   ```
+   http://127.0.0.1:8888/callback
+   ```
+2. Add your Spotify account to the app's **User Management** allowlist (Settings → Users and Access).
+3. Run locally:
+
+```bash
+SPOTIFY_CLIENT_ID=your_id SPOTIFY_CLIENT_SECRET=your_secret node scripts/get-spotify-refresh-token.js
+```
+
+4. Copy the printed `SPOTIFY_REFRESH_TOKEN` into Vercel environment variables.
+
+### 3. Configure your site
 
 Edit `config.js`:
 
@@ -40,7 +57,7 @@ window.SITE_CONFIG = {
 
 Add a background image named `hero-bg.jpg` in the project root (or change `heroImage` to any URL).
 
-### 3. Run locally with Vercel
+### 4. Run locally with Vercel
 
 ```bash
 npm i -g vercel
@@ -52,12 +69,13 @@ Set environment variables when prompted (or in `.env.local`):
 ```
 SPOTIFY_CLIENT_ID=your_client_id
 SPOTIFY_CLIENT_SECRET=your_client_secret
+SPOTIFY_REFRESH_TOKEN=your_refresh_token
 YOUTUBE_API_KEY=your_youtube_key   # optional, for full-track playback
 ```
 
 Open `http://localhost:3000`.
 
-### 4. Deploy to Vercel
+### 5. Deploy to Vercel
 
 ```bash
 vercel
@@ -67,8 +85,9 @@ In the Vercel dashboard, add:
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `SPOTIFY_CLIENT_ID` | Yes | Fetch playlist tracks |
-| `SPOTIFY_CLIENT_SECRET` | Yes | Fetch playlist tracks |
+| `SPOTIFY_CLIENT_ID` | Yes | Spotify app credentials |
+| `SPOTIFY_CLIENT_SECRET` | Yes | Spotify app credentials |
+| `SPOTIFY_REFRESH_TOKEN` | Yes | Read your playlist tracks |
 | `YOUTUBE_API_KEY` | No | Full songs via YouTube (like Pan Wala) |
 
 ## Playback modes
@@ -95,9 +114,9 @@ spotify-radio/
 
 ## Notes
 
-- Your Spotify playlist must be **public** (or you need user OAuth, which this project does not implement).
+- The playlist must be **owned by you** (or you must be a collaborator). Spotify returns 403 otherwise.
+- Your Spotify account must be on the app's **allowlist** in the Developer Dashboard (development mode).
 - YouTube playback requires a [Google Cloud API key](https://console.cloud.google.com/) with YouTube Data API v3 enabled.
-- For a fully curated experience like Pan Wala, you can hardcode tracks with known YouTube IDs in `app.js` instead of using the API.
 
 ## License
 

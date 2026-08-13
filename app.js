@@ -119,7 +119,8 @@ async function loadPlaylist() {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to load playlist');
+      const message = [data.error, data.hint].filter(Boolean).join(' — ');
+      throw new Error(message || 'Failed to load playlist');
     }
 
     playlistMeta = data;
